@@ -1,103 +1,44 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
-	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/tatane616/go-rest-api/article"
+	"github.com/tatane616/go-rest-api/database"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
-type Article struct {
-	ID      string `json:id`
-	Title   string `json:title`
-	Desc    string `json:desc`
-	Content string `json:content`
-}
+func initDatabase() {
+	var err error
 
-var articles []Article
-
-// Get all articles
-func getArticles(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(articles)
-}
-
-// Get single article
-func getArticle(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	params := mux.Vars(r)
-	for _, item := range articles {
-		if item.ID == params["id"] {
-			json.NewEncoder(w).Encode(item)
-			return
-		}
+	// in-memory DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect database")
 	}
-	json.NewEncoder(w).Encode(&Article{})
-}
 
-// Create new article
-func createArticle(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	var article Article
-	_ = json.NewDecoder(r.Body).Decode(&article)
-	// Mock ID
-	article.ID = strconv.Itoa(rand.Intn(1000000000))
-	articles = append(articles, article)
-	json.NewEncoder(w).Encode(article)
-}
+	database.DBConn = db
 
-// Update article
-func updateArticle(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	params := mux.Vars(r)
-	for index, item := range articles {
-		if item.ID == params["id"] {
-			articles = append(articles[:index], articles[index+1:]...)
-			var article Article
-			_ = json.NewDecoder(r.Body).Decode(&article)
-			article.ID = params["id"]
-			articles = append(articles, article)
-			return
-		}
-	}
-}
+	db.AutoMigrate(&article.Article{})
+	db.Create(&article.Article{ID: "1", Title: "Hello", Desc: "Article Description", Content: "Article Content"})
 
-// Delete article
-func deleteArticle(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	params := mux.Vars(r)
-	for index, item := range articles {
-		if item.ID == params["id"] {
-			articles = append(articles[:index], articles[index+1:]...)
-			break
-		}
-	}
-	json.NewEncoder(w).Encode(articles)
-}
-
-func home(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Welcome to Home!")
+	fmt.Println("Connection Opened to Database")
 }
 
 func handleRequests() {
 	// Init router
 	r := mux.NewRouter().StrictSlash(true)
 
-	// TODO: add DB
-	articles = append(articles, Article{ID: "1", Title: "Hello", Desc: "Article Description", Content: "Article Content"})
-	articles = append(articles, Article{ID: "2", Title: "Hello", Desc: "Article Description", Content: "Article Content"})
-
 	// Endpoints
-	r.HandleFunc("/", home)
-	r.HandleFunc("/articles", getArticles).Methods("GET")
-	r.HandleFunc("/articles/{id}", getArticle).Methods("GET")
-	r.HandleFunc("/articles", createArticle).Methods("POST")
-	r.HandleFunc("/articles/{id}", updateArticle).Methods("PUT")
-	r.HandleFunc("/articles/{id}", deleteArticle).Methods("DELETE")
+	r.HandleFunc("/articles", article.GetArticles).Methods("GET")
+	r.HandleFunc("/articles/{id}", article.GetArticle).Methods("GET")
+	r.HandleFunc("/articles", article.CreateArticle).Methods("POST")
+	r.HandleFunc("/articles/{id}", article.UpdateArticle).Methods("PUT")
+	r.HandleFunc("/articles/{id}", article.DeleteArticle).Methods("DELETE")
 
 	// Start server
 	fmt.Println("Start server")
@@ -105,6 +46,6 @@ func handleRequests() {
 }
 
 func main() {
-	fmt.Println("Hello from main")
+	initDatabase()
 	handleRequests()
 }
